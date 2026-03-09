@@ -37,7 +37,7 @@ transform = transforms.Compose([
 # ---------------- HOME ----------------
 @app.route("/")
 def home():
-    return "Finderon Backend Running 🚀"
+    return "Finderon v2 Credibility System LIVE 🔥"
 
 # ---------------- SERVE IMAGE ----------------
 @app.route("/outputs/<filename>")
