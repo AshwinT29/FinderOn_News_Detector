@@ -13,8 +13,8 @@ import pytesseract
 from model_loader import load_model
 from gradcam import generate_gradcam
 
-# 🔹 SET YOUR TESSERACT PATH (Windows only)
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+#  REMOVE Windows-only Tesseract path
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # 🔹 GOOGLE FACT CHECK API KEY
 GOOGLE_API_KEY = "AIzaSyDrUzhbT6CjFG6GA7Hh2G5FNledMb4xW68"
@@ -52,47 +52,53 @@ def get_image(filename):
 
 # ---------------- FACT CHECK FUNCTION ----------------
 def verify_fact(claim_text):
-    url = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
+    try:
+        url = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
 
-    params = {
-        "query": claim_text,
-        "key": GOOGLE_API_KEY,
-        "languageCode": "en"
-    }
+        params = {
+            "query": claim_text,
+            "key": GOOGLE_API_KEY,
+            "languageCode": "en"
+        }
 
-    response = requests.get(url, params=params)
-    data = response.json()
+        response = requests.get(url, params=params)
+        data = response.json()
 
-    if "claims" not in data:
+        if "claims" not in data:
+            return None
+
+        claim = data["claims"][0]
+        review = claim["claimReview"][0]
+
+        return {
+            "claim": claim["text"],
+            "publisher": review["publisher"]["name"],
+            "rating": review["textualRating"],
+            "review_url": review["url"]
+        }
+
+    except:
         return None
 
-    claim = data["claims"][0]
-    review = claim["claimReview"][0]
-
-    return {
-        "claim": claim["text"],
-        "publisher": review["publisher"]["name"],
-        "rating": review["textualRating"],
-        "review_url": review["url"]
-    }
 
 # ---------------- NEWS PREDICTION FUNCTION ----------------
 def predict_news(text):
-    text_vector = vectorizer.transform([text])
-    prediction = news_model.predict(text_vector)[0]
-    probability = news_model.predict_proba(text_vector)[0]
+    try:
+        text_vector = vectorizer.transform([text])
+        prediction = news_model.predict(text_vector)[0]
+        probability = news_model.predict_proba(text_vector)[0]
 
-    confidence = max(probability) * 100
+        confidence = max(probability) * 100
 
-    if prediction == 1:
-        result = "Real"
-    else:
-        result = "Fake"
+        result = "Real" if prediction == 1 else "Fake"
 
-    return {
-        "result": result,
-        "confidence": round(confidence, 2)
-    }
+        return {
+            "result": result,
+            "confidence": round(confidence, 2)
+        }
+    except:
+        return None
+
 
 # ---------------- MAIN ANALYZE ROUTE ----------------
 @app.route("/analyze", methods=["POST"])
@@ -127,8 +133,11 @@ def analyze():
         output_path = os.path.join(OUTPUT_FOLDER, output_name)
         cv2.imwrite(output_path, marked_image)
 
-        # 🔹 OCR TEXT EXTRACTION
-        extracted_text = pytesseract.image_to_string(image)
+        # 🔹 OCR TEXT EXTRACTION (SAFE)
+        try:
+            extracted_text = pytesseract.image_to_string(image)
+        except:
+            extracted_text = ""
 
         news_ai_result = None
         fact_result = None
