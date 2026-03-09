@@ -9,16 +9,20 @@ import uuid
 import pickle
 import requests
 import pytesseract
+import numpy as np
+import re
 
 from model_loader import load_model
 from gradcam import generate_gradcam
 
-# 🔹 GOOGLE FACT CHECK API KEY
-GOOGLE_API_KEY = "AIzaSyDrUzhbT6CjFG6GA7Hh2G5FNledMb4xW68"
+# ---------------- APP CONFIG ----------------
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
-# 🔹 Load Models
+# 🔐 Use Environment Variable (DO NOT HARDCODE)
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# ---------------- LOAD MODELS ----------------
 model = load_model()
 news_model = pickle.load(open("model/fake_news_model.pkl", "rb"))
 vectorizer = pickle.load(open("model/vectorizer.pkl", "rb"))
@@ -39,12 +43,12 @@ transform = transforms.Compose([
 def home():
     return "Finderon v2 Credibility System LIVE 🔥"
 
-# ---------------- SERVE IMAGE ----------------
+# ---------------- SERVE GRADCAM IMAGE ----------------
 @app.route("/outputs/<filename>")
 def get_image(filename):
     return send_from_directory(OUTPUT_FOLDER, filename)
 
-# ---------------- FACT CHECK ----------------
+# ---------------- GOOGLE FACT CHECK ----------------
 def verify_fact(claim_text):
     try:
         url = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
@@ -71,11 +75,12 @@ def verify_fact(claim_text):
             "review_url": review["url"]
         }
 
-    except:
+    except Exception as e:
+        print("Fact Check Error:", e)
         return None
 
 
-# ---------------- NEWS NLP ----------------
+# ---------------- NLP FAKE NEWS MODEL ----------------
 def predict_news(text):
     try:
         text_vector = vectorizer.transform([text])
@@ -89,29 +94,27 @@ def predict_news(text):
             "result": result,
             "confidence": round(confidence, 2)
         }
-    except:
+    except Exception as e:
+        print("NLP Error:", e)
         return None
 
 
-# ---------------- CREDIBILITY SCORE ----------------
-def calculate_credibility(image_result,
-                          news_ai_result,
-                          fact_result):
-
+# ---------------- CREDIBILITY CALCULATION ----------------
+def calculate_credibility(image_result, news_ai_result, fact_result):
     score = 100
 
-    # 🔹 Image impact
+    # Image impact
     if image_result == "Fake":
         score -= 30
 
-    # 🔹 NLP impact
+    # NLP impact
     if news_ai_result:
         if news_ai_result["result"] == "Fake":
             score -= 25
         else:
             score += 10
 
-    # 🔹 Fact Check impact
+    # Fact Check impact
     if isinstance(fact_result, dict):
         rating = fact_result["rating"].lower()
 
@@ -134,7 +137,7 @@ def calculate_credibility(image_result,
     return score, status
 
 
-# ---------------- MAIN ROUTE ----------------
+# ---------------- MAIN ANALYZE ROUTE ----------------
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
@@ -151,7 +154,7 @@ def analyze():
 
         tensor = transform(image).unsqueeze(0)
 
-        # 🔹 IMAGE AI
+        # 🔹 IMAGE AI DETECTION
         with torch.no_grad():
             output = model(tensor)
             probs = torch.softmax(output, dim=1)
@@ -166,16 +169,17 @@ def analyze():
         output_path = os.path.join(OUTPUT_FOLDER, output_name)
         cv2.imwrite(output_path, marked_image)
 
-        # 🔹 OCR
+        # 🔹 OCR TEXT EXTRACTION
         try:
-            extracted_text = pytesseract.image_to_string(image)
-        except:
+            extracted_text = pytesseract.image_to_string(image).strip()
+        except Exception as e:
+            print("OCR Error:", e)
             extracted_text = ""
 
         news_ai_result = None
         fact_result = None
 
-        if extracted_text.strip() != "":
+        if extracted_text != "":
             news_ai_result = predict_news(extracted_text)
             fact_result = verify_fact(extracted_text)
 
@@ -189,6 +193,7 @@ def analyze():
         return jsonify({
             "image_result": image_result,
             "image_confidence": image_confidence,
+            "extracted_text": extracted_text,
             "news_ai_prediction": news_ai_result,
             "fact_check": fact_result if fact_result else "No fact check found",
             "credibility_score": credibility_score,
@@ -199,8 +204,12 @@ def analyze():
     except Exception as e:
         print("SERVER ERROR:", e)
         return jsonify({"error": str(e)}), 500
-
-
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
+    return text
+extracted_text = clean_text(extracted_text)
+# ---------------- RUN APP ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)

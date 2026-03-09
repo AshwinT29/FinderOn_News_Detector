@@ -57,4 +57,5 @@ for epoch in range(10):
     print(f"Validation Accuracy: {100 * correct / total:.2f}%")
 
 torch.save(model.state_dict(), "model_weight.pth")
+model.save("model.h5")
 print("Training completed and model saved!")
