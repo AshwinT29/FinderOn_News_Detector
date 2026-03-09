@@ -1,0 +1,11 @@
+venv
+__pycache__
+dataset
+train
+val
+test
+models
+training
+*.pyc
+.git
+.gitignore
