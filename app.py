@@ -138,6 +138,8 @@ def calculate_credibility(image_result, news_ai_result, fact_result):
 
 
 # ---------------- MAIN ANALYZE ROUTE ----------------
+def analyze():
+    model = torch.load("model.pth")
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
