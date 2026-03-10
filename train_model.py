@@ -4,58 +4,53 @@ import torch.optim as optim
 from torchvision import datasets, transforms, models
 from torch.utils.data import DataLoader
 
+# Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Image transforms
 transform = transforms.Compose([
-    transforms.Resize((224,224)),
-    transforms.ToTensor(),
+    transforms.Resize((224, 224)),
+    transforms.ToTensor()
 ])
 
-train_data = datasets.ImageFolder("dataset/train", transform=transform)
-val_data = datasets.ImageFolder("dataset/val", transform=transform)
+# Load dataset
+train_dataset = datasets.ImageFolder("dataset/train", transform=transform)
+val_dataset = datasets.ImageFolder("dataset/val", transform=transform)
 
-train_loader = DataLoader(train_data, batch_size=16, shuffle=True)
-val_loader = DataLoader(val_data, batch_size=16)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=16)
 
-model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+# Load ResNet18
+model = models.resnet18(pretrained=True)
 model.fc = nn.Linear(model.fc.in_features, 2)
 model = model.to(device)
 
+# Loss & Optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-for epoch in range(10):
+# Training loop
+num_epochs = 3
+
+for epoch in range(num_epochs):
     model.train()
-    total_loss = 0
+    running_loss = 0.0
 
-    for imgs, lbls in train_loader:
-        imgs, lbls = imgs.to(device), lbls.to(device)
+    for images, labels in train_loader:
+        images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
-        outputs = model(imgs)
-        loss = criterion(outputs, lbls)
+        outputs = model(images)
+        loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
+        running_loss += loss.item()
 
-    print(f"Epoch {epoch+1}, Training Loss: {total_loss/len(train_loader)}")
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_loader):.4f}")
 
-    # Validation accuracy
-    model.eval()
-    correct = 0
-    total = 0
+print("Training finished!")
 
-    with torch.no_grad():
-        for imgs, lbls in val_loader:
-            imgs, lbls = imgs.to(device), lbls.to(device)
-            outputs = model(imgs)
-            _, predicted = torch.max(outputs, 1)
-            total += lbls.size(0)
-            correct += (predicted == lbls).sum().item()
-
-    print(f"Validation Accuracy: {100 * correct / total:.2f}%")
-
+# SAVE MODEL
 torch.save(model.state_dict(), "model_weight.pth")
-model.save("model.h5")
-print("Training completed and model saved!")
+print("Model saved successfully!")
