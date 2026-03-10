@@ -1,7 +1,5 @@
-flask
-flask-cors
-torch
-pytesseract
+fastapi
+uvicorn
+torch==2.2.2
+torchvision
 pillow
-requests
-numpy
