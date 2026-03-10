@@ -13,9 +13,7 @@ from gradcam import generate_gradcam
 app = Flask(__name__)
 CORS(app)
 
-# Load model once
 model = load_model()
-model.eval()
 
 UPLOAD_FOLDER = "static/uploads"
 OUTPUT_FOLDER = "static/outputs"
@@ -53,41 +51,21 @@ def analyze():
 
         tensor = transform(image).unsqueeze(0)
 
-        # -------- Prediction --------
+        # Prediction
         with torch.no_grad():
             output = model(tensor)
             probs = torch.softmax(output, dim=1)
             confidence, pred = torch.max(probs, 1)
 
-        confidence_value = confidence.item()
-        confidence_percent = round(confidence_value * 100, 2)
+        result = "Fake" if pred.item() == 0 else "Real"
+        confidence_percent = round(confidence.item() * 100, 2)
 
-        # -------- Decision Logic --------
-        if confidence_value < 0.60:
-            result = "Uncertain"
-            explanation = (
-                "The model confidence is low.\n"
-                "Image may contain mixed patterns.\n"
-                "Manual verification is recommended."
-            )
+        explanation = (
+            "Model analyzed global pixel patterns and texture inconsistencies. "
+            "Highlighted regions show strongest activation."
+        )
 
-        elif pred.item() == 0:
-            result = "Fake"
-            explanation = (
-                "The model detected abnormal pixel structures.\n"
-                "Texture inconsistencies suggest AI manipulation.\n"
-                "Highlighted region indicates suspicious area."
-            )
-
-        else:
-            result = "Real"
-            explanation = (
-                "The image shows consistent pixel distribution.\n"
-                "No major digital manipulation artifacts found.\n"
-                "Image likely captured from a real-world source."
-            )
-
-        # -------- GradCAM --------
+        # GradCAM
         marked_image = generate_gradcam(model, tensor, original)
 
         output_name = "marked_" + filename
@@ -108,4 +86,5 @@ def analyze():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
