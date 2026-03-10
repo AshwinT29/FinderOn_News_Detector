@@ -1,6 +1,6 @@
 flask
 flask-cors
-torch==2.2.2
+torch
 pytesseract
 pillow
 requests
